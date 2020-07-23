@@ -6,8 +6,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SparkFuzzySQL\SparkFuzzySQL.Worker.csproj">
-      <ReferenceSourceTarget>ProjectReference</ReferenceSourceTarget>
-    </ProjectReference>
+    <ProjectReference Include="..\SparkFuzzySQL.Worker\SparkFuzzySQL.Worker.csproj" />
   </ItemGroup>
 </Project>

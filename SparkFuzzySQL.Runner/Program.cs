@@ -7,8 +7,6 @@ namespace SparkFuzzySQL.Runner
         static void Main(string[] args)
         {
             Console.WriteLine("Hello World!");
-
-            
         }
     }
 }
