@@ -14,7 +14,7 @@ namespace SparkFuzzySQL.Extensions
             _membershipFunction = membershipFunction;
         }
 
-        public string GetName() => _name;
+        public string GetName() => _name.ToLowerInvariant();
 
         public Column CalculateMembershipRatio(Column x) => _membershipFunction.GetValueFor(x);
     }

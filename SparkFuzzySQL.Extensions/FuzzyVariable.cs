@@ -14,11 +14,13 @@ namespace SparkFuzzySQL.Extensions
             _terms = new List<FuzzyTerm>();
         }
 
-        public string GetName() => _name;
+        public string GetName() => _name.ToLowerInvariant();
 
         public void AddTerm(FuzzyTerm term) => _terms.Add(term);
 
-        public FuzzyTerm GetTermByName(string name) => _terms.FirstOrDefault(t => t.GetName() == name);
+        public FuzzyTerm GetTermByName(string name) => _terms.FirstOrDefault(t => t.GetName() == name.ToLowerInvariant());
+
+        public IList<FuzzyTerm> GetTerms() => _terms;
 
     }
 }
