@@ -1,66 +1,74 @@
-﻿using System;
-using Microsoft.Spark.Sql;
+﻿using Microsoft.Spark.Sql;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using Microsoft.Spark.Sql.Catalog;
 
 namespace SparkFuzzySQL.Extensions
 {
     public static class DataFrameExtensions
     {
-        public static DataFrame FuzzyOr(this DataFrame dataFrame, FuzzyVariable fuzzyVariable, string[] conditions)
+        private const double DefaultThreshold = 0.5;
+        private const string TempColumnName = "_condition";
+
+        public static DataFrame FuzzyOr(this DataFrame dataFrame, FuzzyVariable fuzzyVariable, string[] conditions, double threshold = DefaultThreshold)
         {
             var temperatureValue = dataFrame[fuzzyVariable.GetName()];
-            return dataFrame.Filter(GetOrCondition(temperatureValue, fuzzyVariable, conditions) >= 0.5);
+            return dataFrame.Filter(GetOrCondition(temperatureValue, fuzzyVariable, conditions) >= threshold);
         }
 
-        public static DataFrame FuzzyAnd(this DataFrame dataFrame, FuzzyVariable fuzzyVariable, string[] conditions)
+        public static DataFrame FuzzyAnd(this DataFrame dataFrame, FuzzyVariable fuzzyVariable, string[] conditions, double threshold = DefaultThreshold)
         {
             var temperatureValue = dataFrame[fuzzyVariable.GetName()];
-            return dataFrame.Filter(GetAndCondition(temperatureValue, fuzzyVariable, conditions) >= 0.5);
+            return dataFrame.Filter(GetAndCondition(temperatureValue, fuzzyVariable, conditions) >= threshold);
         }
 
-        public static RelationalGroupedDataset FuzzyGroupBy(this DataFrame dataFrame, FuzzyVariable fuzzyVariable)
+        public static DataFrame FuzzySelect(this DataFrame dataFrame, FuzzyVariable fuzzyVariable, string condition, double threshold = DefaultThreshold)
         {
-            var frame = dataFrame.Projection(fuzzyVariable, false);
-            return frame.GroupBy(frame["_condition"]);
+            var temperatureValue = dataFrame[fuzzyVariable.GetName()];
+            return dataFrame.Filter(ProcessCondition(temperatureValue, fuzzyVariable, condition) >= threshold);
         }
 
-        public static DataFrame FuzzyJoin(this DataFrame dataFrame, FuzzyVariable fuzzyVariable, DataFrame right)
-        {
-            var left = dataFrame.Projection(fuzzyVariable);
-            right = right.Projection(fuzzyVariable);
-
-            return left.Join(right, left[fuzzyVariable.GetName()] == right[fuzzyVariable.GetName()]);
-        }
-
-        public static DataFrame Projection(this DataFrame dataFrame, FuzzyVariable fuzzyVariable, bool changeColumn = true)
+        public static DataFrame Projection(this DataFrame dataFrame, FuzzyVariable fuzzyVariable, bool changeColumn = true, double threshold = DefaultThreshold)
         {
             var originalFrame = dataFrame;
             var newFrame = default(DataFrame);
             foreach (var term in fuzzyVariable.GetTerms())
             {
-                var frame = originalFrame.WithColumn("_condition", Functions.When(ProcessCondition(dataFrame[fuzzyVariable.GetName()], fuzzyVariable, term.GetName()) >= 0.5, term.GetName()).Otherwise(""));
+                var frame = originalFrame.WithColumn(TempColumnName, Functions.When(ProcessCondition(dataFrame[fuzzyVariable.GetName()], fuzzyVariable, term.GetName()) >= threshold, term.GetName()).Otherwise(""));
                 newFrame = newFrame != null ? newFrame.Union(frame) : frame;
             }
 
             if (changeColumn)
             {
-                var columns = newFrame.Columns().ToList();
-                columns.Remove(fuzzyVariable.GetName());
-                newFrame = newFrame.Select(columns.Select(c => newFrame[c]).ToArray());
+                var columns = newFrame?.Columns().ToList();
+                if (columns != null)
+                {
+                    columns.Remove(fuzzyVariable.GetName());
+                    newFrame = newFrame.Select(columns.Select(c => newFrame[c]).ToArray());
+                }
             }
 
-            newFrame = newFrame.Filter(newFrame["_condition"] != "");
+            newFrame = newFrame?.Filter(newFrame[TempColumnName] != "");
 
             if (changeColumn)
             {
-                newFrame = newFrame.WithColumnRenamed("_condition", fuzzyVariable.GetName());
+                newFrame = newFrame?.WithColumnRenamed(TempColumnName, fuzzyVariable.GetName());
             }
 
             return newFrame;
+        }
 
+        public static RelationalGroupedDataset FuzzyGroupBy(this DataFrame dataFrame, FuzzyVariable fuzzyVariable, double threshold = DefaultThreshold)
+        {
+            var frame = dataFrame.Projection(fuzzyVariable, false, threshold);
+            return frame.GroupBy(frame[TempColumnName]);
+        }
+
+        public static DataFrame FuzzyJoin(this DataFrame dataFrame, FuzzyVariable fuzzyVariable, DataFrame right, double threshold = DefaultThreshold)
+        {
+            var left = dataFrame.Projection(fuzzyVariable, threshold: threshold);
+            right = right.Projection(fuzzyVariable, threshold: threshold);
+
+            return left.Join(right, left[fuzzyVariable.GetName()] == right[fuzzyVariable.GetName()]);
         }
 
         private static Column GetOrCondition(Column x, FuzzyVariable fuzzyVariable, string[] conditions) =>

@@ -23,26 +23,13 @@ namespace SparkFuzzySQL.Extensions.MembershipFunction
             D = d;
         }
 
-        public double GetValueFor(double x)
-        {
-            if (x == A && x == B || x == C && x == D)
-                return 1.0;
-
-            if (x <= A || x >= D)
-                return 0.0;
-
-            if ((x >= B) && (x <= C))
-                return 1.0;
-
-            if (x > A && x < B)
-                return x / (B - A) - A / (B - A);
-
-            return -x / (D - C) + D / (D - C);
-        }
-
         public Column GetValueFor(Column x)
         {
-            throw new NotImplementedException();
+            return Functions.When(x.Lt(A), 0.0)
+                .When(x.Lt(B), ((x - A) / (B - A)))
+                .When(x.Lt(C), 1.0)
+                .When(x.Lt(D), ((-x + D) / (D - C)))
+                .Otherwise(0.0);
         }
     }
 }
